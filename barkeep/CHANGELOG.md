@@ -7,6 +7,27 @@ Versioning started at 2.1.0. The 2.0.0 entry below is backfilled from git
 history after the fact (commits `3f81b23`..`ffaea4c`) — it was never tagged
 or released under that number at the time.
 
+## [Unreleased]
+
+### Fixed
+- `install.ps1` now runs in Windows PowerShell 5.1, the version built into
+  Windows. It used a three-part `Join-Path` that only PowerShell 6 and newer
+  accept.
+- `install.ps1` creates `settings.json` when it's missing. Before, it reported
+  success without setting anything up.
+- `install.ps1` tests Python by running it, so it no longer mistakes the Windows
+  Store shortcuts for a real install, and it falls back to `python3` and `py -3`.
+- `install.ps1` stops with `INSTALL FAILED` and a nonzero exit code on any
+  failure. Missing source files and an unreadable `settings.json` used to slip
+  through.
+
+### Changed
+- `install.ps1` backs up an existing `settings.json` before changing it, keeps
+  any extra `statusLine` fields, and leaves the file untouched when nothing
+  needs to change.
+- `install.ps1` gained a `-ClaudeDir` option for installing somewhere other than
+  the real config folder.
+
 ## [2.1.0] — 2026-07-26
 
 ### Added
