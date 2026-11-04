@@ -11,10 +11,10 @@ Each module is independent and self-contained. Install only what you want.
 A zero-token-overhead status bar for Claude Code showing objectives, context window usage, total token burn, and git status, with optional segments for model, effort, cache, and weekly rate limits. Every segment can be switched on, off, or reordered with a small CLI. Two variants: full (Windows default) and light (WSL/Linux default, with a gradient project name in tmux).
 
 ```powershell
-# Windows (PowerShell 7)
+# Windows
 git clone https://github.com/sky-salsa/small-magics.git
 cd small-magics\barkeep
-pwsh -File install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 ```bash
@@ -23,7 +23,7 @@ git clone https://github.com/sky-salsa/small-magics.git /tmp/small-magics
 bash /tmp/small-magics/barkeep/install.sh
 ```
 
-The Windows installer has two extra requirements, and v2 installs alongside any v1 you already have. The [Barkeep README](barkeep/README.md) covers both.
+v2 installs alongside any v1 you already have. The [Barkeep README](barkeep/README.md) has the details.
 
 ### [Hand-Down, Hand-Up, and North Star](skills/) -- Claude Code Skills
 
@@ -59,7 +59,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 ## Requirements
 
-- **Barkeep**: Python 3 (stdlib only). PowerShell 7 to install on Windows.
+- **Barkeep**: Python 3.7 or newer (stdlib only)
 - **Hand-Down, Hand-Up, and North Star**: Claude Code
 - **System Inputs**: Windows 11, AutoHotkey v2, a Bluetooth ring, Logitech mouse with G Hub
 

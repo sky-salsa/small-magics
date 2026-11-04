@@ -4,18 +4,20 @@ Zero-token-overhead status bar for Claude Code. v2's headline change: every segm
 
 ## Install
 
-### Windows (PowerShell 7)
+### Requirements
+
+- **Python 3.7 or newer**, stdlib only. On Windows it has to be on PATH as `python`, `python3`, or `py`. The installer tests each one by running it, and stops with a clear message if none works. The Store shortcuts Windows ships named `python` don't count, so get Python from [python.org](https://python.org) or with `winget install Python.Python.3.12`.
+- **Git**, to clone the repo.
+
+### Windows (PowerShell)
 
 ```powershell
 git clone https://github.com/sky-salsa/small-magics.git
 cd small-magics\barkeep
-pwsh -File install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Two things to know on Windows:
-
-- **It needs PowerShell 7 (`pwsh`).** The installer does not run under Windows PowerShell 5.1, the version that ships with Windows. `winget install Microsoft.PowerShell` gets you PowerShell 7.
-- **`~/.claude/settings.json` has to exist first.** If you don't have one yet, create it with `{}` as its only contents, then run the installer.
+This runs in Windows PowerShell 5.1, the version built into Windows. `-ExecutionPolicy Bypass` applies to this one run, because Windows blocks scripts by default. It's written to run in PowerShell 7 too, but that hasn't been tested.
 
 The `irm | iex` one-liner from v1 no longer works. The installer copies files from the folder it sits in, so it has to run from a clone.
 
@@ -26,7 +28,18 @@ git clone https://github.com/sky-salsa/small-magics.git /tmp/small-magics
 bash /tmp/small-magics/barkeep/install.sh
 ```
 
+### What the installers do
+
 Both installers write to `~/.claude/extensions/barkeep-v2/` (NOT `~/.claude/extensions/barkeep/`, which is v1's home). They update `~/.claude/settings.json` to point Claude Code's `statusLine` and `UserPromptSubmit` hook at the v2 scripts, and leave your other hooks alone. **Restart Claude Code** after install.
+
+The Windows installer also:
+
+- Creates `settings.json` and the `.claude` folder if you don't have them.
+- Saves a copy to `settings.json.barkeep-backup-<timestamp>` before changing an existing file. Only the `statusLine` command and the objective hook change. If you had a different status line, it gets replaced, and the backup has it.
+- Stops with `INSTALL FAILED` and a nonzero exit code if anything goes wrong. If `settings.json` can't be read, it's left exactly as it was.
+- Changes nothing in `settings.json` when you run it again.
+
+`-ClaudeDir <folder>` installs against a different Claude config folder, which is handy for trying it somewhere harmless.
 
 The Windows installer sets up the full variant. The WSL / Linux / macOS installer sets up the light variant. To switch, change `statusline.py` to `statusline-light.py` (or the reverse) in `settings.json`.
 
