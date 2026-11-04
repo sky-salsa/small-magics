@@ -25,27 +25,27 @@ bash /tmp/small-magics/barkeep/install.sh
 
 The Windows installer has two extra requirements, and v2 installs alongside any v1 you already have. The [Barkeep README](barkeep/README.md) covers both.
 
-### [Hand-Down and Hand-Up](skills/) -- Claude Code Handoff Skills
+### [Hand-Down, Hand-Up, and North Star](skills/) -- Claude Code Skills
 
-Two Claude Code skills that carry a project across `/clear`, `/compact`, or a brand new session. `/hand-down` saves where things stand: an index of the project's docs, a state file, a learning log, and a pointer in `CLAUDE.md`. `/hand-up` makes the next agent read all of it in full before it touches anything.
+Three Claude Code skills. `/hand-down` and `/hand-up` carry a project across `/clear`, `/compact`, or a brand new session. `/hand-down` saves where things stand: an index of the project's docs, a state file, a learning log, and a pointer in `CLAUDE.md`. `/hand-up` makes the next agent read all of it in full before it touches anything. `/north-star` holds the rest of the conversation to one principle: don't accept a belief or theory as true until it's abundantly verified.
 
 ```bash
 # WSL / Linux (skip the clone if you already have one)
 git clone https://github.com/sky-salsa/small-magics.git /tmp/small-magics
 mkdir -p ~/.claude/skills
-cp -r /tmp/small-magics/skills/hand-down /tmp/small-magics/skills/hand-up ~/.claude/skills/
+cp -r /tmp/small-magics/skills/hand-down /tmp/small-magics/skills/hand-up /tmp/small-magics/skills/north-star ~/.claude/skills/
 ```
 
 ```powershell
 # Windows (skip the clone if you already have one)
 git clone https://github.com/sky-salsa/small-magics.git
 New-Item -ItemType Directory -Force "$HOME\.claude\skills" | Out-Null
-Copy-Item -Recurse small-magics\skills\hand-down, small-magics\skills\hand-up "$HOME\.claude\skills\"
+Copy-Item -Recurse small-magics\skills\hand-down, small-magics\skills\hand-up, small-magics\skills\north-star "$HOME\.claude\skills\"
 ```
 
-Start a new Claude Code session to pick them up, then use `/hand-down` and `/hand-up`.
+Start a new Claude Code session to pick them up, then use `/hand-down`, `/hand-up`, and `/north-star`.
 
-A few things you'll notice inside: the skills were written for Sky, so they mention him by name, and `/hand-up` mentions a `/north-star` skill that isn't included here (the principle is spelled out at the bottom of the file, so nothing breaks). `service files/skill log/` in `hand-down` ships empty. It's where the skill keeps notes on its own issues as you use it.
+A couple of things you'll notice inside: the skills were written for Sky, so they mention him by name. `service files/skill log/` in `hand-down` ships empty. It's where the skill keeps notes on its own issues as you use it.
 
 ### [System Inputs](system-inputs/) -- Ring + Mouse + ShareX Remapping
 
@@ -60,7 +60,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 ## Requirements
 
 - **Barkeep**: Python 3 (stdlib only). PowerShell 7 to install on Windows.
-- **Hand-Down and Hand-Up**: Claude Code
+- **Hand-Down, Hand-Up, and North Star**: Claude Code
 - **System Inputs**: Windows 11, AutoHotkey v2, a Bluetooth ring, Logitech mouse with G Hub
 
 ## License
