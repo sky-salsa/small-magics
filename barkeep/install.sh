@@ -1,92 +1,132 @@
 #!/usr/bin/env bash
+# Barkeep v2 installer (WSL/Linux/macOS).
+# Installs to ~/.claude/extensions/barkeep-v2/. Does NOT touch v1
+# at ~/.claude/extensions/barkeep/ — coexistence by design.
+
 set -e
 
 echo ""
 echo "  ================================================"
-echo "   Barkeep -- Claude Code Status Bar"
+echo "   Barkeep v2 -- Modular Claude Code Status Bar"
 echo "  ================================================"
 echo ""
 
-INSTALL_DIR="$HOME/.claude/extensions/barkeep"
+INSTALL_DIR="$HOME/.claude/extensions/barkeep-v2"
 SETTINGS="$HOME/.claude/settings.json"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Check for python3
 if ! command -v python3 &>/dev/null; then
     echo "  ERROR: python3 is required but not found in PATH."
-    echo "  Install Python 3 and try again."
     exit 1
 fi
 
-# Upgrade detection
 if [ -f "$INSTALL_DIR/statusline.py" ]; then
-    echo "  Found existing Barkeep install. Upgrading..."
-    echo "  (objective history and session data will be preserved)"
+    echo "  Found existing Barkeep v2 install. Upgrading..."
+    echo "  (barkeep-config.json, objectives.json, current_session.txt preserved)"
 else
     echo "  Fresh install."
 fi
 
-# Create target directory
 mkdir -p "$INSTALL_DIR"
 
-# Copy files
-for f in statusline.py statusline-light.py objective-hook.py set-objective.py; do
+# Code files — always overwrite on upgrade
+CODE_FILES=(
+    statusline.py
+    statusline-light.py
+    segments.py
+    barkeep_config.py
+    manage.py
+    objective-hook.py
+    set-objective.py
+    barkeep-config.default.json
+)
+for f in "${CODE_FILES[@]}"; do
     if [ -f "$SCRIPT_DIR/$f" ]; then
         cp "$SCRIPT_DIR/$f" "$INSTALL_DIR/$f"
         echo "  Installed $f"
+    else
+        echo "  WARNING: $f missing from source"
     fi
 done
 
+# Seed barkeep-config.json from defaults only if it doesn't exist (preserves user edits)
+if [ ! -f "$INSTALL_DIR/barkeep-config.json" ]; then
+    cp "$INSTALL_DIR/barkeep-config.default.json" "$INSTALL_DIR/barkeep-config.json"
+    echo "  Seeded barkeep-config.json from defaults"
+else
+    echo "  Preserved existing barkeep-config.json"
+fi
+
 echo ""
 
-# Build commands (WSL uses python3, not python)
+# Default to the light variant on Linux/WSL (matches v1 convention)
 STATUSLINE_CMD="python3 \"$INSTALL_DIR/statusline-light.py\""
 HOOK_CMD="python3 \"$INSTALL_DIR/objective-hook.py\" 2>/dev/null || true"
 
-# Update settings.json
 if [ -f "$SETTINGS" ]; then
     echo "  Updating existing settings.json..."
 else
     mkdir -p "$(dirname "$SETTINGS")"
     echo '{}' > "$SETTINGS"
-    echo "  Created new settings.json..."
+    echo "  Created new settings.json"
 fi
 
-# Use python3 to safely merge into settings.json
-python3 -c "
-import json, sys
+BARKEEP_SETTINGS_PATH="$SETTINGS" \
+BARKEEP_STATUSLINE_CMD="$STATUSLINE_CMD" \
+BARKEEP_HOOK_CMD="$HOOK_CMD" \
+python3 <<'PYEOF'
+import json
+import os
 
-settings_path = '$SETTINGS'
-with open(settings_path, 'r') as f:
+settings_path = os.environ["BARKEEP_SETTINGS_PATH"]
+new_status_cmd = os.environ["BARKEEP_STATUSLINE_CMD"]
+new_hook_cmd = os.environ["BARKEEP_HOOK_CMD"]
+
+with open(settings_path, "r", encoding="utf-8") as f:
     settings = json.load(f)
 
-# Set statusLine
-settings['statusLine'] = {
-    'type': 'command',
-    'command': '$STATUSLINE_CMD'
-}
+# statusLine: outright replace (single value, no merge needed)
+settings["statusLine"] = {"type": "command", "command": new_status_cmd}
 
-# Add UserPromptSubmit hook
-hooks = settings.setdefault('hooks', {})
-hooks['UserPromptSubmit'] = [{
-    'hooks': [{
-        'type': 'command',
-        'command': '$HOOK_CMD'
-    }]
-}]
+# UserPromptSubmit hooks: surgical merge.
+# Find any inner hook whose command contains "objective-hook.py" and replace
+# its command with v2's path. Leave all other hooks (and other event types)
+# untouched. If no objective-hook entry exists, append a new top-level entry
+# with just our hook.
+hooks = settings.setdefault("hooks", {})
+ups = hooks.get("UserPromptSubmit", [])
+replaced = False
 
-with open(settings_path, 'w') as f:
+for outer in ups:
+    for inner in outer.get("hooks", []):
+        if "objective-hook.py" in inner.get("command", ""):
+            inner["command"] = new_hook_cmd
+            replaced = True
+
+if not replaced:
+    ups.append({"hooks": [{"type": "command", "command": new_hook_cmd}]})
+
+hooks["UserPromptSubmit"] = ups
+
+with open(settings_path, "w", encoding="utf-8") as f:
     json.dump(settings, f, indent=2)
-"
+
+print("  [hooks] UserPromptSubmit: " + ("updated existing objective-hook entry" if replaced else "appended new objective-hook entry"))
+PYEOF
 
 echo ""
-echo "  Barkeep installed successfully!"
+echo "  Barkeep v2 installed at: $INSTALL_DIR"
 echo ""
-echo "  Restart Claude Code to see your new status bar."
+echo "  Restart Claude Code to see the new status bar."
 echo ""
-echo "  Note: This installed the 'light' variant (statusline-light.py)."
-echo "  For the full variant with objectives and directory display,"
-echo "  edit ~/.claude/settings.json and change statusline-light.py"
-echo "  to statusline.py (and use 'python' instead of 'python3' on"
-echo "  native Windows)."
+echo "  Default variant: statusline-light.py (tmux/WSL friendly)"
+echo "  To use the full variant instead, edit ~/.claude/settings.json"
+echo "  and change 'statusline-light.py' to 'statusline.py'."
+echo ""
+echo "  Manage segments:"
+echo "    python3 \"$INSTALL_DIR/manage.py\" list"
+echo "    python3 \"$INSTALL_DIR/manage.py\" enable <segment>"
+echo ""
+echo "  Rollback to v1: re-run v1's install.sh (this installer leaves"
+echo "  ~/.claude/extensions/barkeep/ untouched)."
 echo ""

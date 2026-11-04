@@ -1,141 +1,136 @@
-# Barkeep Installer -- Claude Code Status Bar
-# Usage: powershell -c "irm https://raw.githubusercontent.com/sky-salsa/small-magics/main/barkeep/install.ps1 | iex"
+# Barkeep v2 installer (Windows / PowerShell).
+# Installs to $HOME\.claude\extensions\barkeep-v2\. Does NOT touch v1
+# at $HOME\.claude\extensions\barkeep\ — coexistence by design.
 
 $ErrorActionPreference = "Stop"
 
-$repo = "https://raw.githubusercontent.com/sky-salsa/small-magics/main/barkeep"
-$installDir = Join-Path $HOME ".claude" "extensions" "barkeep"
+$installDir   = Join-Path $HOME ".claude" "extensions" "barkeep-v2"
 $settingsPath = Join-Path $HOME ".claude" "settings.json"
-
-$files = @("statusline.py", "objective-hook.py", "set-objective.py")
+$scriptDir    = $PSScriptRoot
+if (-not $scriptDir) { $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 Write-Host ""
-Write-Host "=== Barkeep -- Claude Code Status Bar ===" -ForegroundColor Cyan
+Write-Host "  ================================================" -ForegroundColor Cyan
+Write-Host "   Barkeep v2 -- Modular Claude Code Status Bar  " -ForegroundColor Cyan
+Write-Host "  ================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Detect old installations by scanning settings.json for previous statusline paths
-$oldInstallDir = $null
-if (Test-Path $settingsPath) {
-    $existingSettings = Get-Content $settingsPath -Raw | ConvertFrom-Json
-    if ($existingSettings.statusLine -and $existingSettings.statusLine.command) {
-        $match = [regex]::Match($existingSettings.statusLine.command, 'python\s+"?(.+)[/\\]statusline\.py"?')
-        if ($match.Success) {
-            $candidate = $match.Groups[1].Value.Trim('"')
-            if ($candidate -ne ($installDir -replace '\\','/') -and (Test-Path $candidate)) {
-                $oldInstallDir = $candidate
-            }
-        }
-    }
-}
-
-# Migrate objectives.json from old installation
-if ($oldInstallDir) {
-    Write-Host "Found previous installation at: $oldInstallDir" -ForegroundColor Yellow
-    $oldObjectives = Join-Path $oldInstallDir "objectives.json"
-    $newObjectives = Join-Path $installDir "objectives.json"
-    if (Test-Path $oldObjectives) {
-        if (-not (Test-Path $installDir)) {
-            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-        }
-        if (Test-Path $newObjectives) {
-            Write-Host "Merging objective history from old installation..." -ForegroundColor Gray
-            $oldData = Get-Content $oldObjectives -Raw | ConvertFrom-Json -AsHashtable
-            $newData = Get-Content $newObjectives -Raw | ConvertFrom-Json -AsHashtable
-            foreach ($key in $oldData.Keys) {
-                if (-not $newData.ContainsKey($key)) {
-                    $newData[$key] = $oldData[$key]
-                }
-            }
-            $newData | ConvertTo-Json -Depth 10 | Set-Content -Path $newObjectives -Encoding UTF8
-        } else {
-            Write-Host "Migrating objective history from old installation..." -ForegroundColor Gray
-            Copy-Item $oldObjectives $newObjectives
-        }
-        Write-Host "Objective history preserved." -ForegroundColor Green
-    }
-    Write-Host ""
-}
-
-# Check for existing installation at target path (upgrade)
-if (Test-Path (Join-Path $installDir "statusline.py")) {
-    Write-Host "Upgrading existing Barkeep installation..." -ForegroundColor Yellow
-    Write-Host "(objective history and session data will be preserved)" -ForegroundColor Gray
-    Write-Host ""
-}
-
-# Check for Python
+# Python check
 $python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $python) {
-    Write-Host "ERROR: Python 3 is required but not found in PATH." -ForegroundColor Red
-    Write-Host "Install Python from https://python.org and try again."
+    Write-Host "  ERROR: Python 3 is required but not found in PATH." -ForegroundColor Red
+    Write-Host "  Install Python from https://python.org and try again."
     exit 1
 }
 
-# Create install directory
-if (-not (Test-Path $installDir)) {
-    New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-    Write-Host "Created $installDir" -ForegroundColor Green
+if (Test-Path (Join-Path $installDir "statusline.py")) {
+    Write-Host "  Found existing Barkeep v2 install. Upgrading..." -ForegroundColor Yellow
+    Write-Host "  (barkeep-config.json, objectives.json, current_session.txt preserved)" -ForegroundColor Gray
+} else {
+    Write-Host "  Fresh install." -ForegroundColor Green
 }
 
-# Download files
-foreach ($file in $files) {
-    $url = "$repo/$file"
-    $dest = Join-Path $installDir $file
-    Write-Host "Downloading $file..." -ForegroundColor Gray
-    try {
-        Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
-    } catch {
-        Write-Host "ERROR: Failed to download $file from $url" -ForegroundColor Red
-        Write-Host $_.Exception.Message
-        exit 1
+if (-not (Test-Path $installDir)) {
+    New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+}
+
+$codeFiles = @(
+    "statusline.py",
+    "statusline-light.py",
+    "segments.py",
+    "barkeep_config.py",
+    "manage.py",
+    "objective-hook.py",
+    "set-objective.py",
+    "barkeep-config.default.json"
+)
+
+foreach ($f in $codeFiles) {
+    $src = Join-Path $scriptDir $f
+    $dst = Join-Path $installDir $f
+    if (Test-Path $src) {
+        Copy-Item $src $dst -Force
+        Write-Host "  Installed $f" -ForegroundColor Gray
+    } else {
+        Write-Host "  WARNING: $f missing from source" -ForegroundColor Yellow
     }
 }
 
-# Build the commands with proper paths
-$statuslineCmd = "python `"$($installDir -replace '\\','/')/statusline.py`""
-$hookCmd = "python `"$($installDir -replace '\\','/')/objective-hook.py`" 2>/dev/null || true"
+# Seed barkeep-config.json from defaults only if missing (preserves user edits)
+$userConfig    = Join-Path $installDir "barkeep-config.json"
+$defaultConfig = Join-Path $installDir "barkeep-config.default.json"
+if (-not (Test-Path $userConfig)) {
+    Copy-Item $defaultConfig $userConfig -Force
+    Write-Host "  Seeded barkeep-config.json from defaults" -ForegroundColor Gray
+} else {
+    Write-Host "  Preserved existing barkeep-config.json" -ForegroundColor Gray
+}
 
-# Read or create settings.json
+Write-Host ""
+
+# Default to the full variant on Windows (matches v1 convention)
+$statuslineCmd = "python `"$($installDir -replace '\\','/')/statusline.py`""
+$hookCmd       = "python `"$($installDir -replace '\\','/')/objective-hook.py`" 2>/dev/null || true"
+
 if (Test-Path $settingsPath) {
     $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
-    Write-Host "Updating existing settings.json..." -ForegroundColor Gray
+    Write-Host "  Updating existing settings.json..." -ForegroundColor Gray
 } else {
     $claudeDir = Join-Path $HOME ".claude"
     if (-not (Test-Path $claudeDir)) {
         New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null
     }
     $settings = [PSCustomObject]@{}
-    Write-Host "Creating new settings.json..." -ForegroundColor Gray
+    Write-Host "  Created new settings.json" -ForegroundColor Gray
 }
 
-# Set statusLine
-$settings | Add-Member -NotePropertyName "statusLine" -NotePropertyValue ([PSCustomObject]@{
-    type = "command"
-    command = $statuslineCmd
-}) -Force
+# Use python for the merge — PowerShell's PSCustomObject array handling
+# is brittle and easy to clobber neighboring hooks by accident. Pass values
+# via environment variables so embedded quotes/backslashes can't break the
+# Python source.
+$env:BARKEEP_SETTINGS_PATH  = $settingsPath
+$env:BARKEEP_STATUSLINE_CMD = $statuslineCmd
+$env:BARKEEP_HOOK_CMD       = $hookCmd
 
-# Set hooks -- preserve existing hooks, add/update UserPromptSubmit
-if (-not ($settings.PSObject.Properties.Name -contains "hooks")) {
-    $settings | Add-Member -NotePropertyName "hooks" -NotePropertyValue ([PSCustomObject]@{}) -Force
-}
+$mergeScript = @'
+import json, os
+path = os.environ["BARKEEP_SETTINGS_PATH"]
+new_status_cmd = os.environ["BARKEEP_STATUSLINE_CMD"]
+new_hook_cmd   = os.environ["BARKEEP_HOOK_CMD"]
+with open(path, "r", encoding="utf-8") as f:
+    s = json.load(f)
+s["statusLine"] = {"type": "command", "command": new_status_cmd}
+hooks = s.setdefault("hooks", {})
+ups = hooks.get("UserPromptSubmit", [])
+replaced = False
+for outer in ups:
+    for inner in outer.get("hooks", []):
+        if "objective-hook.py" in inner.get("command", ""):
+            inner["command"] = new_hook_cmd
+            replaced = True
+if not replaced:
+    ups.append({"hooks": [{"type": "command", "command": new_hook_cmd}]})
+hooks["UserPromptSubmit"] = ups
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(s, f, indent=2)
+print("  [hooks] UserPromptSubmit: " + ("updated existing objective-hook entry" if replaced else "appended new objective-hook entry"))
+'@
+$mergeScript | python -
 
-$barkeepHook = [PSCustomObject]@{
-    hooks = @(
-        [PSCustomObject]@{
-            type = "command"
-            command = $hookCmd
-        }
-    )
-}
-
-$settings.hooks | Add-Member -NotePropertyName "UserPromptSubmit" -NotePropertyValue @($barkeepHook) -Force
-
-# Write settings back
-$json = $settings | ConvertTo-Json -Depth 10
-Set-Content -Path $settingsPath -Value $json -Encoding UTF8
+Remove-Item Env:BARKEEP_SETTINGS_PATH
+Remove-Item Env:BARKEEP_STATUSLINE_CMD
+Remove-Item Env:BARKEEP_HOOK_CMD
 
 Write-Host ""
-Write-Host "Barkeep installed successfully!" -ForegroundColor Green
+Write-Host "  Barkeep v2 installed at: $installDir" -ForegroundColor Green
 Write-Host ""
-Write-Host "Restart Claude Code to see your new status bar." -ForegroundColor Cyan
+Write-Host "  Restart Claude Code to see the new status bar." -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Default variant: statusline.py (full)" -ForegroundColor Gray
+Write-Host "  Manage segments:" -ForegroundColor Gray
+Write-Host "    python `"$installDir\manage.py`" list" -ForegroundColor Gray
+Write-Host "    python `"$installDir\manage.py`" enable <segment>" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Rollback to v1: re-run v1's install.ps1 (this installer leaves" -ForegroundColor Gray
+Write-Host "  ~\.claude\extensions\barkeep\ untouched)." -ForegroundColor Gray
 Write-Host ""

@@ -1,0 +1,16 @@
+{
+  "_comment": "Default Barkeep v2 segment enable lists. Order = display order. Edit via 'python manage.py' or by hand. This file is the seed copied to barkeep-config.json on first install; user edits live there, not here.",
+  "statusline": [
+    "objective",
+    "directory",
+    "context_bar",
+    "ttu",
+    "git"
+  ],
+  "statusline-light": [
+    "project_gradient",
+    "context_bar",
+    "ttu",
+    "git"
+  ]
+}
